@@ -29,6 +29,7 @@ module VagrantPlugins
           # Destroy the server and remove the tracking ID
           env[:ui].info(I18n.t("vagrant_google.terminating"))
           server.destroy if not server.nil?
+          server.wait_for { not ready? }
           env[:machine].id = nil
 
           @app.call(env)
