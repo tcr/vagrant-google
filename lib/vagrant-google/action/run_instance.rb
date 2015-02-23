@@ -14,6 +14,7 @@
 require "log4r"
 require 'vagrant/util/retryable'
 require 'vagrant-google/util/timer'
+require 'net/http'
 
 module VagrantPlugins
   module Google
@@ -150,6 +151,23 @@ module VagrantPlugins
             env[:interrupted] = true
           end
 
+          def is_winrm_up(ip, port)
+            begin
+              url = URI.parse('https://' + ip.to_s + ':' + port.to_s + '/wsman')
+              req = Net::HTTP::Head.new(url.to_s)
+              res = Net::HTTP.start(url.host, url.port,
+                :use_ssl => true,
+                :verify_mode => OpenSSL::SSL::VERIFY_NONE,
+                :open_timeout => 10,
+                :read_timeout => 10) {|http|
+                http.request(req)
+              }
+              return true
+            rescue
+              return false
+            end
+          end
+
           if !env[:terminated]
             env[:metrics]["instance_ssh_time"] = Util::Timer.time do
               # Wait for SSH to be ready.
@@ -157,7 +175,11 @@ module VagrantPlugins
               while true
                 # If we're interrupted just back out
                 break if env[:interrupted]
-                break if env[:machine].communicate.ready?
+                if image.include? "windows"
+                  break if is_winrm_up(server.public_ip_address, 5986)
+                else
+                  break if env[:machine].communicate.ready?
+                end
                 sleep 2
               end
             end
