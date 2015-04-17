@@ -23,6 +23,20 @@ module VagrantPlugins
 
         def call(env)
           env[:result] = env[:machine].state.id != :not_created
+
+          zone = env[:machine].provider_config.zone
+          zone_config = env[:machine].provider_config.get_zone_config(zone)
+          if not env[:result] and !zone_config.name.nil?
+            begin
+              server = env[:google_compute].servers.get(zone_config.name, zone)
+              if !server.nil? and [:STOPPING, :TERMINATED].include?(server.state.to_sym)
+                env[:ui].info("Waiting for already terminating instance...")
+                server.wait_for { ![:STOPPING, :TERMINATED].include?(server.state.to_sym) }
+              end
+            rescue Exception => e
+            end
+          end
+
           @app.call(env)
         end
       end
